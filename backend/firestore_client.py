@@ -2,44 +2,34 @@
 WASTE IQ – Firestore Client
 Singleton wrapper around firebase-admin Firestore SDK.
 Lazy initialization — does NOT connect at import time.
+Now configured for environment-variable based credentials (Render-safe).
 """
 
 import os
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 import firebase_admin
 from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
-from dotenv import load_dotenv
-
-# Load .env from project root (waste_iq/) regardless of launch directory
-_ROOT = Path(__file__).parent.parent
-load_dotenv(_ROOT / ".env")
 
 # Module-level lazy references — populated on first use
 _app = None
-_db  = None
+_db = None
 
 
 def _get_db():
     """Return the Firestore client, initialising Firebase Admin on first call."""
     global _app, _db
+
     if _db is not None:
         return _db
 
     if not firebase_admin._apps:
-        sa_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "./firebase_service_account.json")
-        # Resolve relative paths from project root, not cwd
-        sa_resolved = (
-            Path(sa_path) if Path(sa_path).is_absolute()
-            else _ROOT / sa_path.lstrip("./")
-        )
-        if sa_resolved.exists():
-            print(f"🔑  Using service account: {sa_resolved}")
-            cred = credentials.Certificate(str(sa_resolved))
-        else:
-            print(f"⚠️   Service account not found at {sa_resolved}, falling back to ApplicationDefault")
-            cred = credentials.ApplicationDefault()
+        cred = credentials.Certificate({
+            "type": "service_account",
+            "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+            "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace("\\n", "\n"),
+            "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+        })
         _app = firebase_admin.initialize_app(cred)
     else:
         _app = firebase_admin.get_app()
@@ -49,6 +39,7 @@ def _get_db():
 
 
 # ── Core helpers ───────────────────────────────────────────────────────────────
+
 def get_doc(collection: str, doc_id: str) -> Optional[Dict]:
     """Fetch a single document. Returns None if not found."""
     ref = _get_db().collection(collection).document(doc_id)
@@ -94,12 +85,15 @@ def query_collection(
     filters example: [("uid", "==", "abc123"), ("fill_level", ">", 80)]
     """
     ref = _get_db().collection(collection)
+
     if filters:
         for field, op, value in filters:
             ref = ref.where(filter=FieldFilter(field, op, value))
+
     if order_by:
         direction = firestore.Query.DESCENDING if order_desc else firestore.Query.ASCENDING
         ref = ref.order_by(order_by, direction=direction)
+
     if limit:
         ref = ref.limit(limit)
 
@@ -108,6 +102,7 @@ def query_collection(
         d = snap.to_dict()
         d["_id"] = snap.id
         docs.append(d)
+
     return docs
 
 
