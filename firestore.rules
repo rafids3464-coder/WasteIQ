@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getRole() {
+      return request.auth.token.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getRole() == 'admin';
+    }
+
+    function isMunicipal() {
+      return isAuthenticated() && (getRole() == 'municipal' || getRole() == 'admin');
+    }
+
+    function isDriver() {
+      return isAuthenticated() && (getRole() == 'driver' || getRole() == 'admin');
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Waste logs — household can read their own
+    match /waste_logs/{logId} {
+      allow read: if isAuthenticated() && (
+        resource.data.uid == request.auth.uid || isAdmin() || isMunicipal()
+      );
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Bins — drivers and municipal can read, admin can write
+    match /bins/{binId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isMunicipal();
+      allow update: if isDriver() && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['fill_level', 'last_collected', 'status', 'driver_uid']);
+    }
+
+    // Complaints
+    match /complaints/{complaintId} {
+      allow read: if isAuthenticated() && (
+        resource.data.submitted_by == request.auth.uid || isAdmin() || isMunicipal()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isMunicipal() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Overflow predictions — read-only for all auth users
+    match /overflow_predictions/{predId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Gamification — users read their own, admin reads all
+    match /gamification/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Leaderboard — public read for authenticated users
+    match /leaderboard/{entry} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Notifications
+    match /notifications/{userId}/messages/{msgId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // Wards
+    match /wards/{wardId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // City reports
+    match /reports/{reportId} {
+      allow read: if isAdmin() || isMunicipal();
+      allow write: if isAdmin();
+    }
+  }
+}

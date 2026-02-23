@@ -1,0 +1,15 @@
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+maxUploadSize = 10
+
+[theme]
+primaryColor = "#00e57d"
+backgroundColor = "#08100c"
+secondaryBackgroundColor = "#0c1812"
+textColor = "#e8f5ee"
+font = "sans serif"
+
+[logger]
+level = "info"

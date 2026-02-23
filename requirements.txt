@@ -1,0 +1,35 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Core Web
+streamlit>=1.32.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+
+# Machine Learning (CPU Only for Render)
+torch
+torchvision
+ultralytics
+scikit-learn
+numpy
+Pillow
+joblib
+
+# Firebase & Auth
+firebase-admin>=6.4.0
+pyrebase4>=4.7.1
+pyjwt>=2.8.0
+python-jose[cryptography]>=3.3.0
+
+# Data & Visuals
+pandas
+plotly
+folium
+streamlit-folium
+reportlab
+
+# Utilities
+httpx
+python-multipart
+requests
+python-dotenv
+openrouteservice
