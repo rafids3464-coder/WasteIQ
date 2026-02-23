@@ -13,11 +13,17 @@ FIREBASE_KEY = os.getenv("FIREBASE_API_KEY", "")
 
 
 def _sign_in(email: str, password: str) -> dict:
+    if not FIREBASE_KEY or FIREBASE_KEY == "...":
+        raise ValueError("CRITICAL: FIREBASE_API_KEY is missing or invalid! Please go precisely to your Render Dashboard > Environment Variables, and securely paste your REAL Firebase Web API Key (do not use '...').")
+        
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_KEY}"
     resp = requests.post(url, json={"email": email, "password": password, "returnSecureToken": True}, timeout=10)
     data = resp.json()
     if "error" in data:
-        raise ValueError(data["error"].get("message", "Login failed").replace("_", " ").title())
+        err_msg = data["error"].get("message", "Login failed").replace("_", " ").title()
+        if "Unregistered Callers" in err_msg or "Invalid Api Key" in err_msg.title():
+            raise ValueError(f"Render Config Error: Your FIREBASE_API_KEY is invalid. Please check your Render Dashboard Environment Variables. (Google API Error: {err_msg})")
+        raise ValueError(err_msg)
     return data
 
 
@@ -157,17 +163,22 @@ def show_login():
                     st.error("Password must be at least 6 characters.")
                 else:
                     with st.spinner("Creating account..."):
-                        result = api_post("/auth/signup", json_data={
-                            "name":     s_name,
-                            "email":    s_email,
-                            "password": s_password,
-                            "role":     s_role,
-                            "ward_id":  s_ward or None,
-                        })
-                        if result and result.get("success"):
-                            st.success("✅ Account created! Please sign in.")
-                        else:
-                            st.error("Signup failed. Email may already be registered.")
+                        try:
+                            resp = requests.post(f"{BACKEND_URL}/auth/signup", json={
+                                "name":     s_name,
+                                "email":    s_email,
+                                "password": s_password,
+                                "role":     s_role,
+                                "ward_id":  s_ward or None,
+                            }, timeout=15)
+                            
+                            if resp.ok and resp.json().get("success"):
+                                st.success("✅ Account created! Please sign in.")
+                            else:
+                                err = resp.json().get('detail', 'Email may already be registered.') if resp.status_code == 400 else resp.text
+                                st.error(f"Signup failed: {err}")
+                        except Exception as e:
+                            st.error(f"Signup failed (Server offline): {e}")
 
         # Footer
         st.markdown(
