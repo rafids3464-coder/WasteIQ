@@ -5,12 +5,15 @@ Single-process production architecture (Render-safe)
 
 import sys
 from pathlib import Path
-import streamlit as st
 
-# Ensure frontend directory is in path for imports
-_HERE = Path(__file__).parent
-if str(_HERE) not in sys.path:
-    sys.path.insert(0, str(_HERE))
+# ─────────────────────────────────────────────
+# FIX: Add PROJECT ROOT to Python path
+# ─────────────────────────────────────────────
+PROJECT_ROOT = Path(__file__).parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+import streamlit as st
 
 st.set_page_config(
     page_title="WASTE IQ",
@@ -19,33 +22,27 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from utils import inject_css, init_session
-from languages import t, LANGUAGE_NAMES
+from frontend.utils import inject_css, init_session
+from frontend.languages import t, LANGUAGE_NAMES
 
-# ─────────────────────────────────────────────────────────────
-# IMPORTANT: FastAPI auto-start REMOVED
-# No subprocess
-# No uvicorn
-# No port 8000
-# Single Streamlit process only
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# Single-process architecture (No FastAPI)
+# ─────────────────────────────────────────────
 
-# Initialize session & inject CSS
 init_session()
 inject_css()
 
 # If not logged in → show login page
 if not st.session_state.get("logged_in"):
-    from _pages.login import show_login
+    from frontend._pages.login import show_login
     show_login()
     st.stop()
 
-# ═════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════
 # SIDEBAR
-# ═════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════
 with st.sidebar:
 
-    # Logo
     st.markdown("""
     <div class="wiq-sidebar-logo">
       <div class="logo-icon">♻️</div>
@@ -90,7 +87,6 @@ with st.sidebar:
     if role == "admin":
         nav_btn(f"⚙️  {t('nav_admin')}", "admin")
 
-    # ── Settings ─────────────────────────────
     st.markdown("---")
 
     lang_options = list(LANGUAGE_NAMES.keys())
@@ -124,52 +120,51 @@ with st.sidebar:
             del st.session_state[key]
         st.rerun()
 
-    # Backend status removed (no backend server anymore)
     with st.expander("System Status", expanded=False):
         st.success("System Running ✅")
 
-# ═════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════
 # PAGE ROUTING
-# ═════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════
 page = st.session_state.active_page
 
 if page == "dashboard":
     if role == "household":
-        from _pages.household_dashboard import show
+        from frontend._pages.household_dashboard import show
     elif role == "municipal":
-        from _pages.municipal_dashboard import show
+        from frontend._pages.municipal_dashboard import show
     elif role == "driver":
-        from _pages.driver_dashboard import show
+        from frontend._pages.driver_dashboard import show
     else:
-        from _pages.admin_dashboard import show
+        from frontend._pages.admin_dashboard import show
     show()
 
 elif page == "classify":
-    from _pages.classifier import show
+    from frontend._pages.classifier import show
     show()
 
 elif page == "complaints":
-    from _pages.complaints import show
+    from frontend._pages.complaints import show
     show()
 
 elif page == "rewards":
-    from _pages.rewards import show
+    from frontend._pages.rewards import show
     show()
 
 elif page == "notifications":
-    from _pages.notifications import show
+    from frontend._pages.notifications import show
     show()
 
 elif page == "profile":
-    from _pages.profile import show
+    from frontend._pages.profile import show
     show()
 
 elif page == "route":
-    from _pages.driver_route import show
+    from frontend._pages.driver_route import show
     show()
 
 elif page == "admin":
-    from _pages.admin_dashboard import show
+    from frontend._pages.admin_dashboard import show
     show()
 
 else:
