@@ -1,18 +1,16 @@
 """
 WASTE IQ – Main Streamlit App Entry Point
-Run: streamlit run app.py --server.port 8501
+Single-process production architecture (Render-safe)
 """
 
 import sys
-import os
 from pathlib import Path
+import streamlit as st
 
 # Ensure frontend directory is in path for imports
 _HERE = Path(__file__).parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
-
-import streamlit as st
 
 st.set_page_config(
     page_title="WASTE IQ",
@@ -21,38 +19,32 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from utils import inject_css, init_session, check_backend
+from utils import inject_css, init_session
 from languages import t, LANGUAGE_NAMES
 
-# ── Auto-Start FastAPI Backend (For Render/Production Deploy) ───────────────
-@st.cache_resource
-def start_backend():
-    import subprocess
-    print("🚀 Auto-starting FastAPI backend on port 8000...")
-    backend_dir = Path(__file__).parent.parent / "backend"
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"],
-        cwd=str(backend_dir)
-    )
-    return proc
+# ─────────────────────────────────────────────────────────────
+# IMPORTANT: FastAPI auto-start REMOVED
+# No subprocess
+# No uvicorn
+# No port 8000
+# Single Streamlit process only
+# ─────────────────────────────────────────────────────────────
 
-# Initialize backend immediately when Streamlit starts
-_backend_process = start_backend()
-
-# ── Initialise session & inject CSS ──────────────────────────────────────────
+# Initialize session & inject CSS
 init_session()
 inject_css()
 
-# ── If not logged in → show login page ───────────────────────────────────────
-if not st.session_state.logged_in:
+# If not logged in → show login page
+if not st.session_state.get("logged_in"):
     from _pages.login import show_login
     show_login()
     st.stop()
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 # SIDEBAR
-# ══════════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 with st.sidebar:
+
     # Logo
     st.markdown("""
     <div class="wiq-sidebar-logo">
@@ -64,9 +56,9 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    # User card
     role = st.session_state.role
     name = st.session_state.name
+
     st.markdown(
         f"""
         <div class="wiq-user-card">
@@ -80,7 +72,6 @@ with st.sidebar:
     st.markdown("##### Navigation")
 
     def nav_btn(label: str, page: str):
-        active_style = "border-left:3px solid #1a7a4a;background:rgba(26,122,74,.08);font-weight:600;color:#1a7a4a;" if st.session_state.active_page == page else ""
         if st.button(label, key=f"nav_{page}", use_container_width=True):
             st.session_state.active_page = page
             st.rerun()
@@ -99,26 +90,30 @@ with st.sidebar:
     if role == "admin":
         nav_btn(f"⚙️  {t('nav_admin')}", "admin")
 
-    # ── Settings ──────────────────────────────────────────────────────────
+    # ── Settings ─────────────────────────────
     st.markdown("---")
 
     lang_options = list(LANGUAGE_NAMES.keys())
     current_lang = st.session_state.get("language", "en")
-    sel_idx      = lang_options.index(current_lang) if current_lang in lang_options else 0
+    sel_idx = lang_options.index(current_lang) if current_lang in lang_options else 0
 
     chosen_lang = st.selectbox(
         f"🌐 {t('lbl_language')}",
         options=lang_options,
         format_func=lambda x: LANGUAGE_NAMES[x],
         index=sel_idx,
-        key="lang_selector",
     )
+
     if chosen_lang != current_lang:
         st.session_state.language = chosen_lang
         st.rerun()
 
-    dark = st.toggle(f"🌙 {t('lbl_dark_mode')}", value=st.session_state.dark_mode, key="dark_toggle")
-    if dark != st.session_state.dark_mode:
+    dark = st.toggle(
+        f"🌙 {t('lbl_dark_mode')}",
+        value=st.session_state.get("dark_mode", False),
+    )
+
+    if dark != st.session_state.get("dark_mode"):
         st.session_state.dark_mode = dark
         st.rerun()
 
@@ -129,16 +124,13 @@ with st.sidebar:
             del st.session_state[key]
         st.rerun()
 
+    # Backend status removed (no backend server anymore)
     with st.expander("System Status", expanded=False):
-        if check_backend():
-            st.success("Backend ✅ Online")
-        else:
-            st.warning("Backend ⚠️ Offline")
+        st.success("System Running ✅")
 
-
-# ══════════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 # PAGE ROUTING
-# ══════════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 page = st.session_state.active_page
 
 if page == "dashboard":
