@@ -1,28 +1,27 @@
 """
 WASTE IQ – Login / Signup Page
-Single-process architecture (No FastAPI, No Port 8000)
+Single-process architecture (No FastAPI)
 """
 
 import streamlit as st
 import requests
 import os
 from firebase_admin import auth as admin_auth
-from backend.firestore_client import set_doc
+from backend.firestore_client import set_doc, get_doc
 from languages import t, LANGUAGE_NAMES
 
 FIREBASE_KEY = os.getenv("FIREBASE_API_KEY", "")
 
 
-# ─────────────────────────────────────────────────────────────
-# FIREBASE REST LOGIN
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# Firebase REST Login
+# ─────────────────────────────────────────────
 def _sign_in(email: str, password: str) -> dict:
     if not FIREBASE_KEY or FIREBASE_KEY == "...":
-        raise ValueError(
-            "CRITICAL: FIREBASE_API_KEY missing in Render Environment Variables."
-        )
+        raise ValueError("FIREBASE_API_KEY missing in Render Environment Variables.")
 
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_KEY}"
+
     resp = requests.post(
         url,
         json={"email": email, "password": password, "returnSecureToken": True},
@@ -37,9 +36,9 @@ def _sign_in(email: str, password: str) -> dict:
     return data
 
 
-# ─────────────────────────────────────────────────────────────
-# LOGIN PAGE
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# Login Page
+# ─────────────────────────────────────────────
 def show_login():
 
     _, col, _ = st.columns([1, 1.6, 1])
@@ -63,10 +62,10 @@ def show_login():
                font-size:42px;box-shadow:0 8px 24px rgba(26,122,74,.35);margin-bottom:14px;">
             ♻️
           </div>
-          <h1 style="font-size:32px;font-weight:900;color:#1a7a4a;letter-spacing:-1.5px;margin:0;">
+          <h1 style="font-size:32px;font-weight:900;color:#1a7a4a;margin:0;">
             WASTE IQ
           </h1>
-          <p style="color:#718096;font-size:15px;font-weight:500;margin-top:4px;">
+          <p style="color:#718096;font-size:15px;margin-top:4px;">
             Smart Waste. Cleaner Cities.
           </p>
         </div>
@@ -76,6 +75,7 @@ def show_login():
 
         # ───────── LOGIN ─────────
         with tab_login:
+
             with st.form("login_form"):
                 email = st.text_input("Email")
                 password = st.text_input("Password", type="password")
@@ -84,12 +84,15 @@ def show_login():
             if submitted:
                 try:
                     data = _sign_in(email, password)
+                    uid = data["localId"]
+
+                    profile = get_doc("users", uid) or {}
 
                     st.session_state.logged_in = True
-                    st.session_state.uid = data["localId"]
+                    st.session_state.uid = uid
                     st.session_state.email = email
-                    st.session_state.name = email.split("@")[0]
-                    st.session_state.role = "household"
+                    st.session_state.name = profile.get("name", email.split("@")[0])
+                    st.session_state.role = profile.get("role", "household")
                     st.session_state.active_page = "dashboard"
 
                     st.rerun()
@@ -97,16 +100,48 @@ def show_login():
                 except Exception as e:
                     st.error(str(e))
 
+            # ───── DEMO LOGIN BUTTONS ─────
+            st.markdown("---")
+            st.markdown("### 🚀 Quick Demo Login")
+
+            demo_accounts = [
+                ("🏠 Household", "household@wasteiq.demo", "demo1234"),
+                ("🏛️ Municipal", "municipal@wasteiq.demo", "demo1234"),
+                ("🚛 Driver", "driver@wasteiq.demo", "demo1234"),
+                ("⚙️ Admin", "admin@wasteiq.demo", "demo1234"),
+            ]
+
+            cols = st.columns(2)
+
+            for i, (label, d_email, d_pw) in enumerate(demo_accounts):
+                with cols[i % 2]:
+                    if st.button(label, use_container_width=True):
+                        try:
+                            data = _sign_in(d_email, d_pw)
+                            uid = data["localId"]
+
+                            profile = get_doc("users", uid) or {}
+
+                            st.session_state.logged_in = True
+                            st.session_state.uid = uid
+                            st.session_state.email = d_email
+                            st.session_state.name = profile.get("name", label)
+                            st.session_state.role = profile.get("role", "household")
+                            st.session_state.active_page = "dashboard"
+
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Demo login failed: {e}")
+
         # ───────── SIGNUP ─────────
         with tab_signup:
+
             with st.form("signup_form"):
                 s_name = st.text_input("Full Name")
                 s_email = st.text_input("Email")
                 s_password = st.text_input("Password", type="password")
-                s_role = st.selectbox(
-                    "Role",
-                    ["household", "municipal", "driver"]
-                )
+                s_role = st.selectbox("Role", ["household", "municipal", "driver"])
                 s_ward = st.text_input("Ward ID (optional)")
                 submit_signup = st.form_submit_button("Create Account", use_container_width=True)
 
